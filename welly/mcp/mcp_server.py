@@ -58,17 +58,17 @@ class WellyMCPServer:
             return [
                     Tool(
                         name="load_las_well",
-                        description="Load a LAS (Log ASCII Standard) file from disk. Provide a file path, NOT file contents. The file must exist on the filesystem.",
+                        description="Load a LAS (Log ASCII Standard) well log file containing petrophysical data. START HERE - this is typically the first step in well log analysis. LAS files contain depth measurements and well log curves like gamma ray (GR), resistivity (RT), density (RHOB), neutron porosity (NPHI), etc. Returns a well_id that you must save for all subsequent operations. Provide a file path on the filesystem, NOT file contents.",
                         inputSchema={
                             "type": "object",
                             "properties": {
                                 "file_path": {
                                     "type": "string",
-                                    "description": "Absolute or relative path to a LAS file on disk (e.g. /path/to/well.las). This is a file path, not file contents."
+                                    "description": "Absolute filesystem path to the LAS file. Examples: '/data/wells/WELL-001.las' or './logs/my_well.las'. Must be an existing file on disk - do NOT provide file contents or base64 data."
                                 },
                                 "alias_dict": {
                                     "type": "object", 
-                                    "description": "Optional dictionary to map curve names (e.g., {'DEPT': 'DEPTH'})",
+                                    "description": "Optional curve renaming dictionary. Example: {'GR': 'GAMMA_RAY', 'DEPT': 'MEASURED_DEPTH'} to standardize curve names during loading.",
                                     "additionalProperties": {"type": "string"}
                                 }
                             },
@@ -77,18 +77,18 @@ class WellyMCPServer:
                     ),
                     Tool(
                         name="get_curve_stats",
-                        description="Calculate statistical summary for curves in a loaded well",
+                        description="Calculate statistical analysis for well log curves including mean, min, max, standard deviation, percentiles, and data quality metrics. Essential for understanding data ranges, identifying outliers, and assessing data quality before interpretation. Works on any loaded well - requires well_id from load_las_well().",
                         inputSchema={
                             "type": "object",
                             "properties": {
                                 "well_id": {
                                     "type": "string",
-                                    "description": "ID of the loaded well to analyze"
+                                    "description": "Unique well identifier returned by load_las_well(). Always use the exact well_id string from the load operation."
                                 },
                                 "curve_names": {
                                     "type": "array",
                                     "items": {"type": "string"},
-                                    "description": "List of curve names to analyze (optional, analyzes all if not provided)"
+                                    "description": "Optional list of specific curve names to analyze. Example: ['GR', 'RHOB', 'NPHI']. If omitted, analyzes ALL curves in the well. Use list_curves() first to see available options."
                                 }
                             },
                             "required": ["well_id"]
@@ -96,25 +96,25 @@ class WellyMCPServer:
                     ),
                     Tool(
                         name="plot_well_log",
-                        description="Generate a well log plot visualization",
+                        description="Generate professional well log plots with multiple curve tracks in industry-standard format. Automatically applies proper petrophysical scales (GR: 0-200 gAPI, density: 1.95-2.95 g/cm3, etc.) and colors. Creates high-resolution PNG images encoded as base64. Perfect for visualizing well data, comparing curves, and creating reports. Unknown curves auto-scale based on data range.",
                         inputSchema={
                             "type": "object", 
                             "properties": {
                                 "well_id": {
                                     "type": "string",
-                                    "description": "ID of the loaded well to plot"
+                                    "description": "Unique well identifier returned by load_las_well(). Always use the exact well_id string from the load operation."
                                 },
                                 "curves": {
                                     "type": "array",
                                     "items": {"type": "string"},
-                                    "description": "List of curve names to include in plot"
+                                    "description": "Optional list of curve names to plot. Example: ['GR', 'RHOB', 'RT', 'NPHI']. If omitted, automatically plots first 6 curves. Each curve gets its own track with proper scaling."
                                 },
                                 "depth_range": {
                                     "type": "array",
                                     "items": {"type": "number"},
                                     "minItems": 2,
                                     "maxItems": 2,
-                                    "description": "Depth range [start, end] to plot (optional)"
+                                    "description": "Optional depth zoom as [start_depth, end_depth]. Example: [2000.0, 2100.0] to plot 100-unit interval. Use well units (feet or meters). Omit to plot entire well."
                                 }
                             },
                             "required": ["well_id"]
@@ -122,13 +122,13 @@ class WellyMCPServer:
                     ),
                     Tool(
                         name="get_well_info",
-                        description="Get header information and metadata from a loaded well",
+                        description="Extract well header information and metadata from LAS files including well name, location coordinates, depth ranges, curve descriptions, and measurement units. Essential for well identification, understanding data context, and preparing analysis reports. Provides geographic info, data quality details, and measurement specifications.",
                         inputSchema={
                             "type": "object",
                             "properties": {
                                 "well_id": {
                                     "type": "string", 
-                                    "description": "ID of the loaded well"
+                                    "description": "Unique well identifier returned by load_las_well(). Always use the exact well_id string from the load operation."
                                 }
                             },
                             "required": ["well_id"]
@@ -136,13 +136,13 @@ class WellyMCPServer:
                     ),
                     Tool(
                         name="list_curves",
-                        description="List all available curves in a loaded well",
+                        description="List available well log curves with metadata including curve names (mnemonics), units, descriptions, data point counts, and null value indicators. Use this after loading a well to see what data is available before plotting or analysis. Common curves: GR (gamma ray), RHOB (density), NPHI (neutron), RT (resistivity), CAL (caliper), SP (spontaneous potential).",
                         inputSchema={
                             "type": "object",
                             "properties": {
                                 "well_id": {
                                     "type": "string",
-                                    "description": "ID of the loaded well"
+                                    "description": "Unique well identifier returned by load_las_well(). Always use the exact well_id string from the load operation."
                                 }
                             },
                             "required": ["well_id"]
