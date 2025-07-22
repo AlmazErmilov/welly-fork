@@ -53,29 +53,143 @@ class WellyMCPTools:
         except Exception:
             return {'start': None, 'stop': None, 'step': None}
     
+    def _create_curve_legend(self, curve_names, well):
+        """Create a dynamic legend for curve plotting using welly's alias system."""
+        try:
+            # Import striplog Legend (optional dependency)
+            from striplog import Legend
+        except ImportError:
+            # If striplog not available, return None (no legend)
+            return None
+        
+        # Import welly's alias dictionary
+        from welly.defaults import ALIAS
+        
+        # Default curve plotting parameters based on common petrophysical types
+        curve_params = {
+            # Gamma Ray
+            'GR': {'color': '#008000', 'xlim': '0,200', 'xscale': 'linear'},
+            
+            # Resistivity (log scale)  
+            'RESD': {'color': '#FF0000', 'xlim': '0.2,2000', 'xscale': 'log'},
+            'RESM': {'color': '#FF6600', 'xlim': '0.2,2000', 'xscale': 'log'},
+            'RESS': {'color': '#FF9900', 'xlim': '0.2,2000', 'xscale': 'log'},
+            
+            # Density
+            'DENS': {'color': '#0000FF', 'xlim': '1.95,2.95', 'xscale': 'linear'},
+            
+            # Porosity
+            'PHIN': {'color': '#FF00FF', 'xlim': '-0.15,0.45', 'xscale': 'linear'},
+            'PHID': {'color': '#CC00CC', 'xlim': '-0.15,0.45', 'xscale': 'linear'},
+            
+            # Sonic
+            'DT': {'color': '#800080', 'xlim': '40,140', 'xscale': 'linear'},
+            
+            # Caliper
+            'CAL': {'color': '#8B4513', 'xlim': '6,20', 'xscale': 'linear'},
+            
+            # SP
+            'SP': {'color': '#000000', 'xlim': '-200,200', 'xscale': 'linear'},
+            
+            # PE
+            'PEF': {'color': '#FFA500', 'xlim': '0,10', 'xscale': 'linear'},
+        }
+        
+        # Build legend CSV for curves present in the well
+        legend_lines = ['colour,lw,ls,xlim,xscale,curve mnemonic']
+        
+        for curve_name in curve_names:
+            # Find curve type using welly's alias system
+            curve_type = None
+            curve_upper = curve_name.upper()
+            
+            # Check each curve type in welly's ALIAS dictionary
+            for standard_type, aliases in ALIAS.items():
+                if curve_upper in aliases:
+                    curve_type = standard_type
+                    break
+            
+            # Get parameters for this curve type
+            params = curve_params.get(curve_type, {})
+            if not params:
+                # Default for unknown curves - calculate xlim from data
+                try:
+                    curve_data = well.data[curve_name]
+                    if hasattr(curve_data, 'values'):
+                        values = curve_data.values[~np.isnan(curve_data.values)]
+                        if len(values) > 0:
+                            data_min = float(np.nanmin(values))
+                            data_max = float(np.nanmax(values))
+                            # Add 5% padding for better visualization
+                            padding = (data_max - data_min) * 0.05
+                            xlim = f"{data_min - padding:.3f},{data_max + padding:.3f}"
+                        else:
+                            xlim = ''
+                    else:
+                        xlim = ''
+                except:
+                    xlim = ''
+                
+                # Assign different colors for unknown curves to distinguish them
+                unknown_colors = ['#666666', '#8B4513', '#4B0082', '#008B8B', '#B8860B', '#2F4F4F']
+                color_index = hash(curve_name) % len(unknown_colors)
+                color = unknown_colors[color_index]
+                
+                params = {'color': color, 'xlim': xlim, 'xscale': 'linear'}
+            
+            # Build CSV line
+            color = params.get('color', '#666666')
+            xlim = params.get('xlim', '')
+            xscale = params.get('xscale', 'linear')
+            
+            xlim_str = f'"{xlim}"' if xlim else ''
+            line = f'{color},1.0,-,{xlim_str},{xscale},{curve_name}'
+            legend_lines.append(line)
+        
+        # Create legend from CSV
+        legend_csv = '\n'.join(legend_lines)
+        
+        try:
+            return Legend.from_csv(text=legend_csv)
+        except Exception:
+            # If legend creation fails, return None
+            return None
+    
     async def load_las_well(self, args: Dict[str, Any], session_id: str) -> Dict[str, Any]:
         """
-        Load a LAS file and create a Well object.
+        Load a LAS (Log ASCII Standard) file containing well log data.
+        
+        This is typically the FIRST step in well log analysis. LAS files contain:
+        - Depth/time measurements
+        - Well log curves (GR, resistivity, porosity, etc.)
+        - Well header information (location, name, etc.)
         
         Args:
-            args: Dictionary containing:
-                - file_path: Absolute or relative path to a LAS file on disk (e.g., "/path/to/well.las")
-                  NOTE: This must be a file path, not file contents. The file must exist on the filesystem.
-                - alias_dict: Optional dictionary to rename curves (e.g., {"GR": "GAMMA_RAY", "DEPT": "DEPTH"})
-            session_id: Session identifier
+            args: Dictionary with required and optional parameters:
+                - file_path (str, required): Absolute path to LAS file on filesystem
+                  Examples: "/path/to/well.las", "./data/my_well.las"
+                  NOTE: Must be actual file path, not file contents
+                - alias_dict (dict, optional): Rename curves during loading
+                  Example: {"GR": "GAMMA_RAY", "DEPT": "DEPTH"}
+            session_id: Session identifier for data persistence
             
         Returns:
-            Dictionary containing:
-                - well_id: Unique identifier for the loaded well (use this for subsequent operations)
-                - curves: List of curve names available in the well
-                - metadata: Well information including name, location, depth range
-                - message: Success message
+            Dictionary with loaded well information:
+                - well_id (str): Unique ID for this well - SAVE THIS for other operations
+                - curves (list): Available curve names like ["GR", "RHOB", "NPHI"]
+                - metadata (dict): Well info including name, depth range, location
+                - message (str): Success confirmation
+                
+        Typical Usage Pattern:
+            1. load_las_well() -> get well_id
+            2. list_curves() -> see available data  
+            3. plot_well_log() or get_curve_stats() -> analyze data
                 
         Example:
-            args = {
-                "file_path": "/data/wells/example.las",
-                "alias_dict": {"GR": "GAMMA_RAY"}  # optional
-            }
+            load_las_well({
+                "file_path": "/data/wells/WELL-001.las",
+                "alias_dict": {"GR": "GAMMA_RAY"}  # optional renaming
+            }, "session_123")
         """
         try:
             file_path = args['file_path']
@@ -137,16 +251,46 @@ class WellyMCPTools:
     
     async def get_curve_stats(self, args: Dict[str, Any], session_id: str) -> Dict[str, Any]:
         """
-        Calculate statistical summary for well curves.
+        Calculate statistical analysis for well log curves.
+        
+        Provides statistics including:
+        - Basic stats: mean, min, max, standard deviation
+        - Percentiles: 25th, 50th (median), 75th
+        - Data quality: count of valid points, null values
+        - Units of measurement for each curve
         
         Args:
-            args: Dictionary containing:
-                - well_id: ID of loaded well
-                - curve_names: Optional list of curves to analyze
+            args: Dictionary with analysis parameters:
+                - well_id (str, required): Well ID from load_las_well()
+                - curve_names (list, optional): Specific curves to analyze
+                  If not specified: analyzes ALL curves in the well
+                  Example: ["GR", "RHOB", "NPHI"]
             session_id: Session identifier
             
         Returns:
-            Dictionary with statistical analysis results
+            Dictionary with statistical results:
+                - statistics (dict): Per-curve stats with keys like:
+                  - count: number of valid data points
+                  - mean, min, max: basic statistics
+                  - std: standard deviation
+                  - median: 50th percentile  
+                  - percentile_25, percentile_75: quartiles
+                  - null_count: missing/invalid values
+                  - unit: measurement units (gAPI, ohm-m, etc.)
+                - analyzed_curves (list): curves that were processed
+                - message (str): summary of analysis
+                
+        Useful For:
+            - Data quality assessment
+            - Identifying outliers or data issues
+            - Understanding curve value ranges
+            - Petrophysical interpretation preparation
+                
+        Example:
+            get_curve_stats({
+                "well_id": "abc-123-def",
+                "curve_names": ["GR", "RHOB"]  # optional selection
+            }, "session_123")
         """
         try:
             well_id = args['well_id']
@@ -222,17 +366,43 @@ class WellyMCPTools:
     
     async def plot_well_log(self, args: Dict[str, Any], session_id: str) -> Dict[str, Any]:
         """
-        Generate a well log plot visualization.
+        Generate a professional well log plot with multiple curve tracks.
+        
+        Creates industry-standard well log visualization with:
+        - Professional petrophysical scales (GR: 0-200 gAPI, etc.)
+        - Proper curve colors and scaling
+        - Depth track with measured depth reference
+        - Auto-scaling for unknown curves
         
         Args:
-            args: Dictionary containing:
-                - well_id: ID of loaded well
-                - curves: Optional list of curves to plot
-                - depth_range: Optional [start, end] depth range
+            args: Dictionary with plotting parameters:
+                - well_id (str, required): Well ID from load_las_well()
+                - curves (list, optional): Curve names to plot
+                  If not specified: plots first 6 curves automatically
+                  Example: ["GR", "RHOB", "NPHI", "RT"]
+                - depth_range (list, optional): [start_depth, end_depth] in well units
+                  Example: [2000.0, 2100.0] to plot 100ft/30m interval
             session_id: Session identifier
             
         Returns:
-            Dictionary with base64 encoded plot image
+            Dictionary with plot data:
+                - plot_base64 (str): PNG image encoded as base64 string
+                - plotted_curves (list): Names of curves actually plotted
+                - depth_range (list): Actual depth range plotted
+                - message (str): Success message
+                
+        Usage Tips:
+            - Images are high-resolution (150 DPI) PNG format
+            - Each curve gets its own track with professional scaling
+            - Unknown curves auto-scale based on data min/max
+            - Display base64 image in web browsers or decode to file
+                
+        Example:
+            plot_well_log({
+                "well_id": "abc-123-def",
+                "curves": ["GR", "RHOB", "NPHI"],
+                "depth_range": [1500.0, 1600.0]  # optional zoom
+            }, "session_123")
         """
         try:
             well_id = args['well_id']
@@ -257,26 +427,33 @@ class WellyMCPTools:
                 raise ValueError(f"Curves not found: {invalid_curves}. Available: {available_curves}")
             
             # Prepare tracks for welly plotting
-            # Add depth track at the beginning for reference
+            # Include MD track for depth reference, as shown in tutorial
             tracks = ['MD'] + curve_names
             
-            # Apply depth filtering to well if specified
-            plotting_well = well
+            # Apply depth filtering if specified
             if depth_range and len(depth_range) == 2:
                 start_depth, end_depth = depth_range
-                # Create a copy of the well with limited depth range
-                plotting_well = well  # Use original well, welly will handle extents
                 extents = (start_depth, end_depth)
             else:
-                extents = None
+                # Use 'curves' to show full extent of data
+                extents = 'curves'
             
-            # Generate plot using welly
-            fig = plotting_well.plot(
+            # Create a dynamic legend for professional curve plotting
+            legend = self._create_curve_legend(curve_names, well)
+            
+            # Use welly's plot_well function for proper legend support
+            # well.plot() method doesn't apply legend correctly, but plot_well() function does
+            from welly.plot import plot_well
+            fig = plot_well(
+                well=well,
                 tracks=tracks,
                 extents=extents,
-                return_fig=True,
-                figsize=(max(12, len(curve_names) * 2), 10)
+                legend=legend
             )
+            
+            # Set figure size for better readability
+            if fig:
+                fig.set_size_inches(max(12, len(curve_names) * 2), 10)
             
             # Convert plot to base64
             buffer = io.BytesIO()
@@ -302,15 +479,45 @@ class WellyMCPTools:
     
     async def get_well_info(self, args: Dict[str, Any], session_id: str) -> Dict[str, Any]:
         """
-        Get header information and metadata from a well.
+        Extract well header information and metadata.
+        
+        Retrieves available well information from LAS file headers including:
+        - Well identification and naming
+        - Geographic location coordinates
+        - Depth/time measurement details
+        - Curve metadata and descriptions
         
         Args:
-            args: Dictionary containing:
-                - well_id: ID of loaded well
+            args: Dictionary with request parameters:
+                - well_id (str, required): Well ID from load_las_well()
             session_id: Session identifier
             
         Returns:
-            Dictionary with well header and metadata information
+            Dictionary with well information:
+                - header (dict): LAS file header sections containing:
+                  - Well section: well name, location, dates
+                  - Version section: LAS file version info
+                  - Parameter section: additional well parameters
+                - curves (dict): Per-curve metadata with units and descriptions
+                - location (dict): Geographic information:
+                  - x, y: coordinates (if available)
+                  - kb: kelly bushing elevation
+                  - crs: coordinate reference system
+                - depth_info (dict): Measurement details:
+                  - start_depth, stop_depth: well extent
+                  - step_size: measurement interval
+                - message (str): retrieval summary
+                
+        Useful For:
+            - Well identification and documentation
+            - Understanding coordinate systems and projections
+            - Checking data quality and completeness
+            - Preparing reports and analysis summaries
+                
+        Example:
+            get_well_info({
+                "well_id": "abc-123-def"
+            }, "session_123")
         """
         try:
             well_id = args['well_id']
@@ -375,15 +582,46 @@ class WellyMCPTools:
     
     async def list_curves(self, args: Dict[str, Any], session_id: str) -> Dict[str, Any]:
         """
-        List all available curves in a well.
+        List available well log curves with metadata.
+        
+        Provides inventory of curves in the loaded well including:
+        - Curve names and descriptions
+        - Units of measurement
+        - Data point counts
+        - Null value indicators
         
         Args:
-            args: Dictionary containing:
-                - well_id: ID of loaded well
+            args: Dictionary with query parameters:
+                - well_id (str, required): Well ID from load_las_well()
             session_id: Session identifier
             
         Returns:
-            Dictionary with list of available curves
+            Dictionary with curve inventory:
+                - curves (list): List of curve objects, each containing:
+                  - name (str): curve mnemonic (e.g., "GR", "RHOB")
+                  - units (str): measurement units (e.g., "gAPI", "g/cm3")
+                  - description (str): curve description
+                  - data_points (int): number of measurements
+                  - has_nulls (bool): whether curve contains missing values
+                - total_curves (int): count of available curves
+                - message (str): summary message
+                
+        Typical Usage:
+            - After loading well, to see what data is available
+            - Before plotting or analysis, to select appropriate curves
+            - For data inventory and quality assessment
+                
+        Common Curve Types:
+            - GR: Gamma Ray (gAPI)
+            - RHOB/DENS: Bulk Density (g/cm3)
+            - NPHI/PHIN: Neutron Porosity (fraction)
+            - RT/RESD: Deep Resistivity (ohm-m)
+            - CAL: Caliper (inches)
+                
+        Example:
+            list_curves({
+                "well_id": "abc-123-def"
+            }, "session_123")
         """
         try:
             well_id = args['well_id']
@@ -402,7 +640,7 @@ class WellyMCPTools:
                         'units': getattr(curve, 'units', 'unknown'),
                         'description': getattr(curve, 'description', ''),
                         'data_points': len(curve.values) if hasattr(curve, 'values') else len(curve),
-                        'has_nulls': np.isnan(curve.values).any() if hasattr(curve, 'values') else False
+                        'has_nulls': bool(np.isnan(curve.values).any()) if hasattr(curve, 'values') else False
                     }
                     curves.append(curve_info)
             
