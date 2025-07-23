@@ -65,34 +65,61 @@ class WellyMCPTools:
         # Import welly's alias dictionary
         from welly.defaults import ALIAS
         
-        # Default curve plotting parameters based on common petrophysical types
+        # Industry-standard-ish curve plotting parameters for petrophysical analysis
+        # Colors based on common-ish industry practices, proper curve standartization planned for the near future
         curve_params = {
-            # Gamma Ray
-            'GR': {'color': '#008000', 'xlim': '0,200', 'xscale': 'linear'},
+            # Gamma Ray - traditionally red/dark red in many displays
+            'GR': {'color': '#DC143C', 'xlim': '0,200', 'xscale': 'linear', 'ls': '-'},
             
-            # Resistivity (log scale)  
-            'RESD': {'color': '#FF0000', 'xlim': '0.2,2000', 'xscale': 'log'},
-            'RESM': {'color': '#FF6600', 'xlim': '0.2,2000', 'xscale': 'log'},
-            'RESS': {'color': '#FF9900', 'xlim': '0.2,2000', 'xscale': 'log'},
+            # Resistivity curves - various shades of red/orange for log scale
+            'RESD': {'color': '#FF0000', 'xlim': '0.2,2000', 'xscale': 'log'},  # Red
+            'RESM': {'color': '#FF4500', 'xlim': '0.2,2000', 'xscale': 'log'},  # Orange red
+            'RESS': {'color': '#FF6347', 'xlim': '0.2,2000', 'xscale': 'log'},  # Tomato
+            'AT10': {'color': '#FF0000', 'xlim': '0.2,2000', 'xscale': 'log'}, # Red
+            'AT20': {'color': '#FF4500', 'xlim': '0.2,2000', 'xscale': 'log'}, # Orange red  
+            'AT30': {'color': '#FF6347', 'xlim': '0.2,2000', 'xscale': 'log'}, # Tomato
+            'AT60': {'color': '#FF7F50', 'xlim': '0.2,2000', 'xscale': 'log'}, # Coral
+            'AT90': {'color': '#FFA500', 'xlim': '0.2,2000', 'xscale': 'log'}, # Orange
+            'ILD': {'color': '#FF0000', 'xlim': '0.2,2000', 'xscale': 'log'},  # Red
+            'ILM': {'color': '#FF4500', 'xlim': '0.2,2000', 'xscale': 'log'},  # Orange red
+            'RT': {'color': '#FF0000', 'xlim': '0.2,2000', 'xscale': 'log'},   # Red
             
-            # Density
-            'DENS': {'color': '#0000FF', 'xlim': '1.95,2.95', 'xscale': 'linear'},
+            # Density - traditionally blue 
+            'DENS': {'color': '#0000FF', 'xlim': '1.95,2.95', 'xscale': 'linear'},  # Blue
+            'RHOB': {'color': '#0000FF', 'xlim': '1.95,2.95', 'xscale': 'linear'},  # Blue
+            'RHOZ': {'color': '#4169E1', 'xlim': '1.95,2.95', 'xscale': 'linear'}, # Royal blue
             
-            # Porosity
-            'PHIN': {'color': '#FF00FF', 'xlim': '-0.15,0.45', 'xscale': 'linear'},
-            'PHID': {'color': '#CC00CC', 'xlim': '-0.15,0.45', 'xscale': 'linear'},
+            # Neutron Porosity - traditionally magenta/purple
+            'PHIN': {'color': '#FF00FF', 'xlim': '-0.15,0.45', 'xscale': 'linear'}, # Magenta
+            'PHID': {'color': '#DA70D6', 'xlim': '-0.15,0.45', 'xscale': 'linear'}, # Orchid
+            'NPHI': {'color': '#FF00FF', 'xlim': '-0.15,0.45', 'xscale': 'linear'}, # Magenta
+            'TNPH': {'color': '#BA55D3', 'xlim': '-0.15,0.45', 'xscale': 'linear'}, # Medium orchid
             
-            # Sonic
-            'DT': {'color': '#800080', 'xlim': '40,140', 'xscale': 'linear'},
+            # Sonic - purple shades
+            'DT': {'color': '#800080', 'xlim': '40,140', 'xscale': 'linear'},   # Purple
+            'DTCO': {'color': '#800080', 'xlim': '40,140', 'xscale': 'linear'}, # Purple
+            'DTS': {'color': '#9370DB', 'xlim': '100,400', 'xscale': 'linear'}, # Medium purple
+            'DTSM': {'color': '#9370DB', 'xlim': '100,400', 'xscale': 'linear'}, # Medium purple
             
-            # Caliper
-            'CAL': {'color': '#8B4513', 'xlim': '6,20', 'xscale': 'linear'},
+            # Caliper - brown/tan colors
+            'CAL': {'color': '#8B4513', 'xlim': '6,20', 'xscale': 'linear'},   # Saddle brown
+            'CALI': {'color': '#8B4513', 'xlim': '6,20', 'xscale': 'linear'},  # Saddle brown
+            'C1': {'color': '#A0522D', 'xlim': '6,20', 'xscale': 'linear'},    # Sienna
+            'C2': {'color': '#CD853F', 'xlim': '6,20', 'xscale': 'linear'},    # Peru
             
-            # SP
-            'SP': {'color': '#000000', 'xlim': '-200,200', 'xscale': 'linear'},
+            # SP (Spontaneous Potential) - black/dark colors
+            'SP': {'color': '#000000', 'xlim': '-200,200', 'xscale': 'linear'}, # Black
             
-            # PE
-            'PEF': {'color': '#FFA500', 'xlim': '0,10', 'xscale': 'linear'},
+            # Photoelectric Factor - orange shades
+            'PEF': {'color': '#FFA500', 'xlim': '0,10', 'xscale': 'linear'},   # Orange
+            'PE': {'color': '#FFA500', 'xlim': '0,10', 'xscale': 'linear'},    # Orange
+            
+            # Water Saturation - cyan/teal colors  
+            'SW': {'color': '#00CED1', 'xlim': '0,1', 'xscale': 'linear'},     # Dark turquoise
+            'SWT': {'color': '#48D1CC', 'xlim': '0,1', 'xscale': 'linear'},    # Medium turquoise
+            
+            # Bit Size - gray
+            'BS': {'color': '#708090', 'xlim': '6,20', 'xscale': 'linear'},    # Slate gray
         }
         
         # Build legend CSV for curves present in the well
@@ -111,6 +138,11 @@ class WellyMCPTools:
             
             # Get parameters for this curve type
             params = curve_params.get(curve_type, {})
+            # Add default line style for recognized curves
+            if params and 'ls' not in params:
+                params = params.copy()
+                params['ls'] = '-'
+            
             if not params:
                 # Default for unknown curves - calculate xlim from data
                 try:
@@ -130,20 +162,21 @@ class WellyMCPTools:
                 except:
                     xlim = ''
                 
-                # Assign different colors for unknown curves to distinguish them
-                unknown_colors = ['#666666', '#8B4513', '#4B0082', '#008B8B', '#B8860B', '#2F4F4F']
+                # Default parameters for unrecognized curves
+                unknown_colors = ['#191970', '#000080', '#483D8B', '#4682B4', '#4169E1', '#6495ED']
                 color_index = hash(curve_name) % len(unknown_colors)
                 color = unknown_colors[color_index]
                 
-                params = {'color': color, 'xlim': xlim, 'xscale': 'linear'}
+                params = {'color': color, 'xlim': xlim, 'xscale': 'linear', 'ls': '--'}
             
             # Build CSV line
             color = params.get('color', '#666666')
             xlim = params.get('xlim', '')
             xscale = params.get('xscale', 'linear')
+            ls = params.get('ls', '-')
             
             xlim_str = f'"{xlim}"' if xlim else ''
-            line = f'{color},1.0,-,{xlim_str},{xscale},{curve_name}'
+            line = f'{color},1.0,{ls},{xlim_str},{xscale},{curve_name}'
             legend_lines.append(line)
         
         # Create legend from CSV
